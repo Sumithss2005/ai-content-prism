@@ -69,6 +69,18 @@ export const InputForm = ({ onAnalysisStart, onAnalysisComplete, isAnalyzing }: 
       return;
     }
 
+    // Validate URL format
+    try {
+      new URL(urlInput);
+    } catch {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL (e.g., https://example.com/article)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       onAnalysisStart();
 
@@ -82,15 +94,34 @@ export const InputForm = ({ onAnalysisStart, onAnalysisComplete, isAnalyzing }: 
 
       if (urlError) throw urlError;
 
+      if (!urlData || !urlData.content) {
+        throw new Error("No content extracted from URL");
+      }
+
       // Analyze the fetched content
       await analyzeContent(urlData.content);
-    } catch (error) {
+    } catch (error: any) {
       console.error("URL fetch error:", error);
+      
+      // Provide helpful error messages
+      let errorMessage = "Could not retrieve content from the URL.";
+      
+      if (error.message?.includes("blocks automated access")) {
+        errorMessage = "This website blocks automated access. Please copy the article text and paste it in the 'Paste Text' tab instead.";
+      } else if (error.message?.includes("not found")) {
+        errorMessage = "Page not found. Please check the URL and try again.";
+      } else if (error.message?.includes("Invalid URL")) {
+        errorMessage = "Invalid URL format. Please enter a complete URL starting with http:// or https://";
+      }
+      
       toast({
         title: "Failed to Fetch URL",
-        description: "Could not retrieve content from the URL. Please try again.",
+        description: errorMessage,
         variant: "destructive",
+        duration: 5000,
       });
+      
+      onAnalysisStart(); // Reset loading state
     }
   };
 
@@ -142,13 +173,18 @@ export const InputForm = ({ onAnalysisStart, onAnalysisComplete, isAnalyzing }: 
           </TabsContent>
 
           <TabsContent value="url" className="space-y-4 mt-6">
-            <Input
-              type="url"
-              placeholder="https://example.com/article"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              disabled={isAnalyzing}
-            />
+            <div className="space-y-2">
+              <Input
+                type="url"
+                placeholder="https://example.com/article"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                disabled={isAnalyzing}
+              />
+              <p className="text-xs text-muted-foreground">
+                Note: Some websites may block automated access. If this happens, copy the text manually instead.
+              </p>
+            </div>
             <Button
               onClick={handleUrlAnalysis}
               disabled={isAnalyzing}
